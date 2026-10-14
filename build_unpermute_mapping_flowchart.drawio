@@ -1,0 +1,88 @@
+<mxfile host="app.diagrams.net" agent="WorkBuddy" version="24.7.5">
+  <diagram id="buildUnpermuteMapping" name="build_unpermute_mapping">
+    <mxGraphModel dx="1100" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="SDC MoE: _build_unpermute_mapping 流程图 (token_dispatcher.py L1028)" style="text;html=1;align=center;verticalAlign=middle;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="250" y="10" width="500" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="start" value="routing_map&#10;[N, E] bool" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="60" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="noteNE" value="N = token 数&#10;E = expert 数&#10;M = routing_map 中 True 的数量&#10;(dropless 下 M = N · K)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="660" y="45" width="230" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="transpose" value="expert_to_token =&#10;routing_map.bool().T.contiguous()&#10;→ [E, N] (expert→token 掩码)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="360" y="150" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="decide" value="fused ?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="430" y="250" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="p1" value="positions = torch.cumsum(&#10;expert_to_token.reshape(-1), 0) - 1&#10;(展平前缀和 −1 → [M, H] 行号)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="380" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="p2" value="torch.where(expert_to_token,&#10;positions.reshape_as(...), -1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="490" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="out1" value="返回 [E, N] 位置映射&#10;选中 → [M, H] 行号 (0 ~ M-1)&#10;未选中 → -1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="590" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="use1" value="TE fused_unpermute(permuted_tokens,&#10;mapping, merging_probs=probs,&#10;restore_shape=...)&#10;一次完成 probs 加权 + 还原 → [N, H]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="70" y="700" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="p3" value="token_indices =&#10;torch.arange(N).unsqueeze(0)&#10;→ [1, N] 原始 token 行号" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="650" y="380" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="p4" value="token_indices.expand(E, -1)&#10;→ [E, N]&#10;(expand 是视图广播, 不复制内存)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="650" y="490" width="260" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="out2" value="masked_select(expert_to_token)&#10;返回 [M] token 行号&#10;(expert-major 排列, 同 permute()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="650" y="590" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="use2" value="unpermute() 非融合分支&#10;output.scatter_add_(0, mapping, [M, H])&#10;→ 还原 [N, H]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="650" y="700" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="chain" value="调用链: dispatch_preprocess() L1153 构建并缓存到 self.reversed_local_input_permutation_mapping&#10;→ combine_postprocess() L1313 传入 unpermute() 使用   |   SDC 的 permute 作用于 ETP 扩展后的 map, unpermute 作用于 ETP 合并后的输出, 因此需用扩展前的 routing_map 重建映射" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="70" y="820" width="840" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="start" target="transpose">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="transpose" target="decide">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="fused = True&#10;(--moe-permute-fusion)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.25;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontStyle=1;" edge="1" parent="1" source="decide" target="p1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="fused = False" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.75;exitY=1;entryX=0.5;entryY=0;fontSize=11;fontStyle=1;" edge="1" parent="1" source="decide" target="p3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="p1" target="p2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="p2" target="out1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="out1" target="use1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="p3" target="p4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="p4" target="out2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="out2" target="use2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" edge="1" parent="1" source="out1" target="chain">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;exitX=0.5;exitY=1;entryX=0.25;entryY=0;" edge="1" parent="1" source="out2" target="chain">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
